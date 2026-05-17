@@ -1,9 +1,9 @@
+# v3 — SLM-base build, no SUSFS hand-ports.
+#
 # Drop this file into your fork of JackA1ltman/NonGKI_Kernel_Build_2nd at:
 #     .github/workflows/build-samsung-a32-oneui-a13.yml
 #
-# Then trigger from the GitHub Actions tab -> "Build Samsung Galaxy A32 (OneUI A13)" -> Run workflow.
-#
-# Before first run, fill in the four FIXME values below.
+# Trigger from the Actions tab → "Build Samsung Galaxy A32 (OneUI A13)" → Run.
 
 name: Build Samsung Galaxy A32 (OneUI A13)
 
@@ -17,21 +17,20 @@ env:
   DEVICE_CODENAME : "a32"
 
   # ---- Toolchain flags -----------------------------------------------------
-  # Samsung stock toolchain was Clang r383902b + aarch64-linux-android GCC 4.9,
-  # but the bundled Linaro 7.5 + clang from the A71 workflow works for 4.14 MTK too.
-  # ANDROID_MAJOR_VERSION=r is required by Samsung's a32 Kconfigs (per OSRC README_Kernel.txt).
+  # SLM common is Linux 4.14.357. clang-r383902b is the same toolchain
+  # referenced in SLM's build.config.mtk.aarch64 and matches Samsung's stock
+  # build for the original .186 tree. ANDROID_MAJOR_VERSION=r still required.
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- ANDROID_MAJOR_VERSION=r KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y"
   EXTRA_CMDS  : "LLVM=1 LLVM_IAS=1 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip READELF=llvm-readelf HOSTCC=clang HOSTCXX=clang++"
 
-  # ---- Kernel source (your repo from script 02-osrc-to-git.sh) -------------
-  # FIXME(1): replace masarykadam below
-  KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_a32.git"
-  KERNEL_BRANCH : "resukisu"
+  # ---- Kernel source -------------------------------------------------------
+  # v3 base: SLMKernel (Knox stripped at source, KSU manual hooks pre-baked
+  # in fs/exec.c / fs/stat.c / fs/open.c). 4.14.357 (vs stock .186) — strict
+  # superset, ABI-stable across 4.14.x.
+  KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_mt6768.git"
+  KERNEL_BRANCH : "common"
 
   # ---- Toolchain downloads -------------------------------------------------
-  # Samsung built A325F stock kernel with clang-r383902 (per /proc/version on
-  # device + OSRC README_Kernel.txt). Pull the exact toolchain from AOSP
-  # prebuilts so cc-option tests for -fstack-protector-strong etc. succeed.
   CLANG_SOURCE  : "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz"
   CLANG_BRANCH  : ""
 
@@ -42,40 +41,41 @@ env:
   GCC_32_BRANCH : ""
 
   # ---- Defconfig -----------------------------------------------------------
+  # a32_slm_defconfig already has CONFIG_KSU=y and ZERO RKP/KDP/UH/DEFEX.
   DEFCONFIG_SOURCE      : ""
-  # Confirmed from OSRC README_Kernel.txt: build with `make a32_defconfig`.
-  DEFCONFIG_NAME        : "a32_defconfig"
+  DEFCONFIG_NAME        : "a32_slm_defconfig"
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT   : false
 
-  # ---- KernelSU-Next + SUSFS  ---------------------------------------------
+  # ---- KernelSU-Next  -----------------------------------------------------
+  # SLM has manual hook sites pre-baked; KERNELSU_AUTO_FORK=next clones
+  # KSU-Next legacy into drivers/kernelsu (via the existing symlink to
+  # ../KernelSU/kernel that SLM ships).
   KERNELSU_SOURCE   : ""
   KERNELSU_BRANCH   : ""
   KERNELSU_AUTO_GET : "true"
-  KERNELSU_AUTO_FORK: "resukisu"         # <-- ReSukiSU (v2 experiment; v1 used KSU-Next)
+  KERNELSU_AUTO_FORK: "next"
 
-  # Pristine SUSFS path: framework applies susfs_patch_to_4.14.patch fresh,
-  # sets CONFIG_KSU_SUSFS_* in defconfig, then runs susfs_inline_hook_patches.sh
-  # which (with ReSukiSU's symbols available) should link cleanly.
-  SUSFS_ENABLE      : true
+  # No SUSFS in v3. KSU-Next's per-app deny list + namespace isolation is
+  # sufficient given the device has tripped Knox (hardware attestation
+  # already failed — SUSFS adds marginal value there).
+  SUSFS_ENABLE      : false
   SUSFS_FIXED       : false
 
-  # ---- Packaging (MTK can't boot raw Image -> use MKBOOTIMG) ---------------
+  # ---- Packaging (MTK can't boot raw Image -> MKBOOTIMG with stock ramdisk)-
   PACK_METHOD       : "MKBOOTIMG"
 
-  # FIXME(3): URL to the stock A325FXXSCDYB2 boot.img produced by
-  #          scripts/03-extract-stock-bootimg.sh.  Easiest: release asset
-  #          on the kernel-source repo.
-  BOOT_SOURCE       : "https://github.com/masarykadam/android_kernel_samsung_a32/releases/download/stock-boot/stock_boot.img"
+  # Re-upload stock_boot.img to a new "stock-boot" release on the SLM fork.
+  # Source file: /Users/adammasaryk/Downloads/a32_kernel/tools/stock_boot.img
+  BOOT_SOURCE       : "https://github.com/masarykadam/android_kernel_samsung_mt6768/releases/download/stock-boot/stock_boot.img"
 
-  # AnyKernel3 settings (unused with MKBOOTIMG but the action still reads them)
   AK3_SOURCE        : "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH        : "master"
 
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13"
+  ROM_TEXT          : "oneui_a13_v3"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
@@ -83,16 +83,17 @@ env:
   PACK_KMODULES     : "false"
   KERNELSU_METHOD   : "shell"
 
-  # Patches index (we may push an a32 fix patch here later)
   PATCHES_SOURCE    : "JackA1ltman/NonGKI_Kernel_Patches"
   PATCHES_BRANCH    : "samsung_kernel"
-  SUSFS_FOLDER_FIXED: ""        # FIXME(4) later: set to "a32_mt6769v" once we publish fix patches
+  SUSFS_FOLDER_FIXED: ""
   SUSFS_PATCH_FIXED : ""
 
   REKERNEL_ENABLE   : "false"
 
-  # MTK + 4.14: prefer syscall hooks over kprobes (Samsung 4.14 MTK has flaky kprobes).
-  HOOK_METHOD       : "syscall"
+  # SLM's KSU hook sites are manual (ksu_handle_execveat / stat / faccessat
+  # already pre-patched in source). Tell the framework not to inject
+  # syscall/kprobe variants.
+  HOOK_METHOD       : "manual"
 
   KERNEL_PATCH      : "false"
 
@@ -103,17 +104,15 @@ env:
   BASEBAND_GUARD_ENABLE: "false"
   BASEBAND_GUARD_BOOT  : "false"
 
-  HIDE_STUFF        : "true"
+  HIDE_STUFF        : "false"
 
   GENERATE_DTB      : "false"
   GENERATE_CHIP     : "mediatek"
 
-  # SUSFS is pre-applied in the kernel source; patch-susfs detects it and skips.
-  # Keep BUILD_DEBUGGER false: its elif branch in patch-susfs/action.yml fails
-  # unconditionally when SKIP_PATCH != true AND SUSFS_PATCH_FIXED is empty,
-  # even if no .rej files actually exist.
+  # SKIP_PATCH=true short-circuits the SUSFS patch path entirely so the
+  # framework can't trip on missing .rej fixups when SUSFS_ENABLE=false.
   BUILD_DEBUGGER    : "false"
-  SKIP_PATCH        : "false"
+  SKIP_PATCH        : "true"
 
   BUILD_OTHER_CONFIG: "false"
   MERGE_CONFIG_FILES: ""
@@ -142,10 +141,6 @@ jobs:
       - name: Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
-      # With ReSukiSU + SUSFS_ENABLE=true this takes the inline-hook branch
-      # (susfs_inline_hook_patches.sh). The required symbols
-      # (ksu_handle_vfs_fstat, ksu_is_init_rc_hook_enabled, etc.) are defined
-      # in ReSukiSU's source, so the link should resolve cleanly.
       - name: Patch for no-kprobe
         uses: ./.github/workflows/patch-no-kprobe
 
