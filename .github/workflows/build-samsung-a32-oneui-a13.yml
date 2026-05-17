@@ -26,7 +26,7 @@ env:
   # ---- Kernel source (your repo from script 02-osrc-to-git.sh) -------------
   # FIXME(1): replace masarykadam below
   KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_a32.git"
-  KERNEL_BRANCH : "main"
+  KERNEL_BRANCH : "resukisu"
 
   # ---- Toolchain downloads -------------------------------------------------
   # Samsung built A325F stock kernel with clang-r383902 (per /proc/version on
@@ -52,13 +52,12 @@ env:
   KERNELSU_SOURCE   : ""
   KERNELSU_BRANCH   : ""
   KERNELSU_AUTO_GET : "true"
-  KERNELSU_AUTO_FORK: "next"            # <-- KernelSU-Next
+  KERNELSU_AUTO_FORK: "resukisu"         # <-- ReSukiSU (v2 experiment; v1 used KSU-Next)
 
-  # SUSFS is pre-applied in the kernel-source repo with CONFIG_KSU_SUSFS_*
-  # baked into the defconfig directly. We set this flag false so patch-no-kprobe
-  # takes the syscall-hook code path (compatible with our SUSFS v2.0) instead
-  # of the inline-hook path (which requires SUSFS v2.1).
-  SUSFS_ENABLE      : false
+  # Pristine SUSFS path: framework applies susfs_patch_to_4.14.patch fresh,
+  # sets CONFIG_KSU_SUSFS_* in defconfig, then runs susfs_inline_hook_patches.sh
+  # which (with ReSukiSU's symbols available) should link cleanly.
+  SUSFS_ENABLE      : true
   SUSFS_FIXED       : false
 
   # ---- Packaging (MTK can't boot raw Image -> use MKBOOTIMG) ---------------
@@ -143,9 +142,10 @@ jobs:
       - name: Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
-      # With SUSFS_ENABLE=false this step takes the syscall-hook branch (uses
-      # syscall_hook_patches.sh) — compatible with our pre-applied SUSFS v2.0.
-      # The inline-hook branch was SUSFS v2.1-only and broke link.
+      # With ReSukiSU + SUSFS_ENABLE=true this takes the inline-hook branch
+      # (susfs_inline_hook_patches.sh). The required symbols
+      # (ksu_handle_vfs_fstat, ksu_is_init_rc_hook_enabled, etc.) are defined
+      # in ReSukiSU's source, so the link should resolve cleanly.
       - name: Patch for no-kprobe
         uses: ./.github/workflows/patch-no-kprobe
 
