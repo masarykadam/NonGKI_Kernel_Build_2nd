@@ -54,8 +54,11 @@ env:
   KERNELSU_AUTO_GET : "true"
   KERNELSU_AUTO_FORK: "next"            # <-- KernelSU-Next
 
-  SUSFS_ENABLE      : true
-  # Set true after we've authored an a32-specific .rej fix patch (first build = false).
+  # SUSFS is pre-applied in the kernel-source repo with CONFIG_KSU_SUSFS_*
+  # baked into the defconfig directly. We set this flag false so patch-no-kprobe
+  # takes the syscall-hook code path (compatible with our SUSFS v2.0) instead
+  # of the inline-hook path (which requires SUSFS v2.1).
+  SUSFS_ENABLE      : false
   SUSFS_FIXED       : false
 
   # ---- Packaging (MTK can't boot raw Image -> use MKBOOTIMG) ---------------
@@ -140,14 +143,11 @@ jobs:
       - name: Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
-      # patch-no-kprobe is skipped: it runs susfs_inline_hook_patches.sh which
-      # explicitly requires "SuSFS v2.1.00 onwards" but the patch we have is
-      # v2.0. Its inline injections reference symbols not present in our
-      # KSU-Next legacy-susfs + SUSFS v2.0 combo (ksu_handle_vfs_fstat,
-      # ksu_is_init_rc_hook_enabled, etc.) and break the final link.
-      #
-      # - name: Patch for no-kprobe
-      #   uses: ./.github/workflows/patch-no-kprobe
+      # With SUSFS_ENABLE=false this step takes the syscall-hook branch (uses
+      # syscall_hook_patches.sh) — compatible with our pre-applied SUSFS v2.0.
+      # The inline-hook branch was SUSFS v2.1-only and broke link.
+      - name: Patch for no-kprobe
+        uses: ./.github/workflows/patch-no-kprobe
 
       - name: Patch Hide Stuff
         uses: ./.github/workflows/patch-hide-stuff
