@@ -28,8 +28,11 @@ env:
   KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_a32.git"
   KERNEL_BRANCH : "main"
 
-  # ---- Toolchain downloads (reuse A71's known-good set) --------------------
-  CLANG_SOURCE  : "https://github.com/nduykha/kernel_samsung_sm7150/releases/download/clang/llvm.tar.xz"
+  # ---- Toolchain downloads -------------------------------------------------
+  # Samsung built A325F stock kernel with clang-r383902 (per /proc/version on
+  # device + OSRC README_Kernel.txt). Pull the exact toolchain from AOSP
+  # prebuilts so cc-option tests for -fstack-protector-strong etc. succeed.
+  CLANG_SOURCE  : "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz"
   CLANG_BRANCH  : ""
 
   GCC_GNU       : true
