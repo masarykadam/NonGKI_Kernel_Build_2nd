@@ -1,0 +1,150 @@
+# Drop this file into your fork of JackA1ltman/NonGKI_Kernel_Build_2nd at:
+#     .github/workflows/build-samsung-a32-oneui-a13.yml
+#
+# Then trigger from the GitHub Actions tab -> "Build Samsung Galaxy A32 (OneUI A13)" -> Run workflow.
+#
+# Before first run, fill in the four FIXME values below.
+
+name: Build Samsung Galaxy A32 (OneUI A13)
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  # ---- Device --------------------------------------------------------------
+  DEVICE_NAME     : "samsung_a32"
+  DEVICE_CODENAME : "a32"
+
+  # ---- Toolchain flags -----------------------------------------------------
+  # Samsung stock toolchain was Clang r383902b + aarch64-linux-android GCC 4.9,
+  # but the bundled Linaro 7.5 + clang from the A71 workflow works for 4.14 MTK too.
+  # ANDROID_MAJOR_VERSION=r is required by Samsung's a32 Kconfigs (per OSRC README_Kernel.txt).
+  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- ANDROID_MAJOR_VERSION=r KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y"
+  EXTRA_CMDS  : "LLVM=1 LLVM_IAS=1 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip READELF=llvm-readelf HOSTCC=clang HOSTCXX=clang++"
+
+  # ---- Kernel source (your repo from script 02-osrc-to-git.sh) -------------
+  # FIXME(1): replace masarykadam below
+  KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_a32.git"
+  KERNEL_BRANCH : "main"
+
+  # ---- Toolchain downloads (reuse A71's known-good set) --------------------
+  CLANG_SOURCE  : "https://github.com/nduykha/kernel_samsung_sm7150/releases/download/clang/llvm.tar.xz"
+  CLANG_BRANCH  : ""
+
+  GCC_GNU       : true
+  GCC_64_SOURCE : "https://github.com/nduykha/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.git"
+  GCC_64_BRANCH : "main"
+  GCC_32_SOURCE : ""
+  GCC_32_BRANCH : ""
+
+  # ---- Defconfig -----------------------------------------------------------
+  DEFCONFIG_SOURCE      : ""
+  # Confirmed from OSRC README_Kernel.txt: build with `make a32_defconfig`.
+  DEFCONFIG_NAME        : "a32_defconfig"
+  DEFCONFIG_ORIGIN_IMAGE: ""
+  DEFCONFIG_FROM_BOOT   : false
+
+  # ---- KernelSU-Next + SUSFS  ---------------------------------------------
+  KERNELSU_SOURCE   : ""
+  KERNELSU_BRANCH   : ""
+  KERNELSU_AUTO_GET : "true"
+  KERNELSU_AUTO_FORK: "next"            # <-- KernelSU-Next
+
+  SUSFS_ENABLE      : true
+  # Set true after we've authored an a32-specific .rej fix patch (first build = false).
+  SUSFS_FIXED       : false
+
+  # ---- Packaging (MTK can't boot raw Image -> use MKBOOTIMG) ---------------
+  PACK_METHOD       : "MKBOOTIMG"
+
+  # FIXME(3): URL to the stock A325FXXSCDYB2 boot.img produced by
+  #          scripts/03-extract-stock-bootimg.sh.  Easiest: release asset
+  #          on the kernel-source repo.
+  BOOT_SOURCE       : "https://github.com/masarykadam/android_kernel_samsung_a32/releases/download/stock-boot/stock_boot.img"
+
+  # AnyKernel3 settings (unused with MKBOOTIMG but the action still reads them)
+  AK3_SOURCE        : "https://github.com/osm0sis/AnyKernel3.git"
+  AK3_BRANCH        : "master"
+
+  NEED_DTBO         : true
+  NEED_SAFE_DTBO    : true
+
+  ROM_TEXT          : "oneui_a13"
+
+  # ---- Misc ----------------------------------------------------------------
+  PYTHON_VERSION    : "3"
+
+  PACK_KMODULES     : "false"
+  KERNELSU_METHOD   : "shell"
+
+  # Patches index (we may push an a32 fix patch here later)
+  PATCHES_SOURCE    : "JackA1ltman/NonGKI_Kernel_Patches"
+  PATCHES_BRANCH    : "samsung_kernel"
+  SUSFS_FOLDER_FIXED: ""        # FIXME(4) later: set to "a32_mt6769v" once we publish fix patches
+  SUSFS_PATCH_FIXED : ""
+
+  REKERNEL_ENABLE   : "false"
+
+  # MTK + 4.14: prefer syscall hooks over kprobes (Samsung 4.14 MTK has flaky kprobes).
+  HOOK_METHOD       : "syscall"
+
+  KERNEL_PATCH      : "false"
+
+  KPM_ENABLE        : "false"
+  KPM_INLINE        : "false"
+  KPM_KPATCH_NEXT   : "false"
+
+  BASEBAND_GUARD_ENABLE: "false"
+  BASEBAND_GUARD_BOOT  : "false"
+
+  HIDE_STUFF        : "true"
+
+  GENERATE_DTB      : "false"
+  GENERATE_CHIP     : "mediatek"
+
+  # First run: leave true. After we get a clean build, set to false to skip uploading rejected hunks.
+  BUILD_DEBUGGER    : "true"
+  SKIP_PATCH        : "false"
+
+  BUILD_OTHER_CONFIG: "false"
+  MERGE_CONFIG_FILES: ""
+
+  FREE_MORE_SPACE   : "true"
+
+jobs:
+  build-kernel:
+    name: Samsung Galaxy A32 (OneUI A13)
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR    : "true"
+      CCACHE_HARDLINK     : "true"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Compilation environment preparation
+        uses: ./.github/workflows/build-env
+
+      - name: Get necessary tools
+        uses: ./.github/workflows/build-ready
+
+      - name: Patch Kernel of SUSFS
+        uses: ./.github/workflows/patch-susfs
+
+      - name: Patch for no-kprobe
+        uses: ./.github/workflows/patch-no-kprobe
+
+      - name: Patch Hide Stuff
+        uses: ./.github/workflows/patch-hide-stuff
+
+      - name: Build Process
+        uses: ./.github/workflows/build-process
+
+      - name: Pack Process
+        uses: ./.github/workflows/pack-process
+
+      - name: Upload Artifacts
+        uses: ./.github/workflows/upload-files
