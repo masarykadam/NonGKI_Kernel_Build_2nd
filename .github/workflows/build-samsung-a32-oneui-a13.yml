@@ -141,10 +141,14 @@ jobs:
       - name: Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
-      - name: Patch for no-kprobe
-        uses: ./.github/workflows/patch-no-kprobe
+      # Skipped: SLM tree has KSU manual hooks pre-baked in fs/exec.c, stat.c,
+      # open.c. The framework's patch-no-kprobe action only accepts
+      # HOOK_METHOD=kprobe|syscall and errors on "manual".
+      # - name: Patch for no-kprobe
+      #   uses: ./.github/workflows/patch-no-kprobe
 
       - name: Patch Hide Stuff
+        if: env.HIDE_STUFF == 'true'
         uses: ./.github/workflows/patch-hide-stuff
 
       - name: Build Process
