@@ -140,8 +140,14 @@ jobs:
       - name: Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
-      - name: Patch for no-kprobe
-        uses: ./.github/workflows/patch-no-kprobe
+      # patch-no-kprobe is skipped: it runs susfs_inline_hook_patches.sh which
+      # explicitly requires "SuSFS v2.1.00 onwards" but the patch we have is
+      # v2.0. Its inline injections reference symbols not present in our
+      # KSU-Next legacy-susfs + SUSFS v2.0 combo (ksu_handle_vfs_fstat,
+      # ksu_is_init_rc_hook_enabled, etc.) and break the final link.
+      #
+      # - name: Patch for no-kprobe
+      #   uses: ./.github/workflows/patch-no-kprobe
 
       - name: Patch Hide Stuff
         uses: ./.github/workflows/patch-hide-stuff
