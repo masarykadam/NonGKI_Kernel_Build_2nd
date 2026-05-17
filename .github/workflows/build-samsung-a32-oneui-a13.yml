@@ -151,6 +151,12 @@ jobs:
         if: env.HIDE_STUFF == 'true'
         uses: ./.github/workflows/patch-hide-stuff
 
+      # SLM common ships CONFIG_DEBUG_INFO_BTF=y, which builds the host tool
+      # tools/bpf/resolve_btfids. That tool requires libelf headers. Pahole is
+      # used by the kernel's BTF generation pass.
+      - name: Install BTF build deps
+        run: sudo apt-get update && sudo apt-get install -y libelf-dev pahole
+
       - name: Build Process
         uses: ./.github/workflows/build-process
 
