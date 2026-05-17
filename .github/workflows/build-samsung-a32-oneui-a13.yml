@@ -59,7 +59,10 @@ env:
   # No SUSFS in v3. KSU-Next's per-app deny list + namespace isolation is
   # sufficient given the device has tripped Knox (hardware attestation
   # already failed — SUSFS adds marginal value there).
-  SUSFS_ENABLE      : false
+  # v4: SUSFS enabled. BUILD_DEBUGGER=true (below) will surface any .rej hunks
+  # from the framework's susfs_patch_to_4.14.patch as a build artifact for
+  # iteration. If patch applies clean -> SUSFS active. If .rej -> hand-fix.
+  SUSFS_ENABLE      : true
   SUSFS_FIXED       : false
 
   # ---- Packaging (MTK can't boot raw Image -> MKBOOTIMG with stock ramdisk)-
@@ -75,7 +78,7 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v3"
+  ROM_TEXT          : "oneui_a13_v4"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
@@ -109,9 +112,11 @@ env:
   GENERATE_DTB      : "false"
   GENERATE_CHIP     : "mediatek"
 
-  # SKIP_PATCH=true short-circuits the SUSFS patch path entirely so the
-  # framework can't trip on missing .rej fixups when SUSFS_ENABLE=false.
-  BUILD_DEBUGGER    : "false"
+  # v4: BUILD_DEBUGGER=true uploads .rej + .orig files as artifact so we can
+  # see exactly what didn't apply against SLM 4.14.357 and fix it locally.
+  # SKIP_PATCH=true means: still produce the .rej artifact, but don't fail
+  # the build on .rej (we'll build kernel anyway; if hooks compile we test).
+  BUILD_DEBUGGER    : "true"
   SKIP_PATCH        : "true"
 
   BUILD_OTHER_CONFIG: "false"
