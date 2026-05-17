@@ -157,6 +157,21 @@ jobs:
       - name: Install BTF build deps
         run: sudo apt-get update && sudo apt-get install -y libelf-dev pahole
 
+      # The framework's build-ready step runs clean_hook.sh, which strips all
+      # pre-existing KSU hook lines from fs/* / drivers/* expecting a fresh
+      # syscall/kprobe patch to be re-injected by patch-no-kprobe. We skip
+      # patch-no-kprobe because SLM ships manual hooks, so we restore them
+      # from the upstream tree via git checkout. We also force
+      # CONFIG_KSU_MANUAL_HOOK=y so KSU-Next's Kbuild sees the hooks.
+      - name: Restore SLM manual KSU hooks and enable MANUAL_HOOK config
+        run: |
+          cd device_kernel
+          git checkout HEAD -- \
+            fs/exec.c fs/stat.c fs/open.c fs/read_write.c fs/namei.c \
+            fs/devpts/inode.c drivers/input/input.c drivers/tty/pty.c \
+            security/selinux/hooks.c kernel/reboot.c kernel/sys.c
+          echo 'CONFIG_KSU_MANUAL_HOOK=y' >> arch/arm64/configs/a32_slm_defconfig
+
       - name: Build Process
         uses: ./.github/workflows/build-process
 
