@@ -36,37 +36,8 @@ for file in "${KSU_CLEAN_FILES[@]}"; do
 done
 
 # Removal of SuSFS
-
-for file in "${SUSFS_CLEAN_FILES[@]}"; do
-    perl -i -0777 -pe 's/#ifndef CONFIG_KSU_SUSFS[^\n]*\n(.*?)#else\n(.*?)#endif\n/$1/gs; s/#ifdef CONFIG_KSU_SUSFS[^\n]*\n(.*?)#else\n(.*?)#endif\n/$1/gs' "${file}"
-    sed -i '/#ifdef CONFIG_KSU_SUSFS/,/#endif/d' "${file}"
-    sed -i '/#if defined(CONFIG_KSU_SUSFS/,/#endif/d' "${file}"
-    sed -i '/#ifndef CONFIG_KSU_SUSFS/,/#endif/d' "${file}"
-
-    if grep -q "CONFIG_KSU_SUSFS/" "${file}"; then
-        echo "[-] Could not remove SuSFS hook from ${file}."
-    else
-        echo "[+] Cleaned SuSFS Hook for ${file}."
-    fi
-done
-
-for file in "${SUSFS_REMAIN_CLEAN_FILES[@]}"; do
-    rm -f "${file}"
-
-    if [ -f "${file}" ]; then
-        echo "[-] Could not remove file ${file}."
-    else
-        echo "[+] Removed file ${file}."
-    fi
-done
-
-if grep -q "CONFIG_KSU_SUSFS" "fs/Makefile"; then
-    sed -i '/CONFIG_KSU_SUSFS/d' fs/Makefile
-    if grep -q "CONFIG_KSU_SUSFS" "fs/Makefile"; then
-        echo "[-] Could not remove code from fs/Makefile."
-    else
-        echo "[+] Removed code for fs/Makefile."
-    fi
-else
-    echo "[-] Have no CONFIG_KSU_SUSFS in fs/Makefile"
-fi
+# Disabled: this kernel source repo (a32) pre-applies SUSFS with device-specific
+# hand-ported hunks. Letting clean_hook strip those would re-introduce the same
+# rejected-hunk problem on every CI run. KSU cleanup above stays — setup.sh
+# always re-creates KSU fresh.
+echo "[i] SuSFS cleanup skipped (source already SUSFS-patched in repo)."
