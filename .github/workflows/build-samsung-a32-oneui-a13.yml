@@ -103,8 +103,11 @@ env:
   GENERATE_DTB      : "false"
   GENERATE_CHIP     : "mediatek"
 
-  # First run: leave true. After we get a clean build, set to false to skip uploading rejected hunks.
-  BUILD_DEBUGGER    : "true"
+  # SUSFS is pre-applied in the kernel source; patch-susfs detects it and skips.
+  # Keep BUILD_DEBUGGER false: its elif branch in patch-susfs/action.yml fails
+  # unconditionally when SKIP_PATCH != true AND SUSFS_PATCH_FIXED is empty,
+  # even if no .rej files actually exist.
+  BUILD_DEBUGGER    : "false"
   SKIP_PATCH        : "false"
 
   BUILD_OTHER_CONFIG: "false"
