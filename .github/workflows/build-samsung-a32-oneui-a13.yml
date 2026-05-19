@@ -47,18 +47,20 @@ env:
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT   : false
 
-  # ---- KernelSU-Next  -----------------------------------------------------
-  # SLM has manual hook sites pre-baked; KERNELSU_AUTO_FORK=next clones
-  # KSU-Next legacy into drivers/kernelsu (via the existing symlink to
-  # ../KernelSU/kernel that SLM ships).
+  # ---- KSU fork: ReSukiSU ------------------------------------------------
+  # v5: switch from KSU-Next legacy to ReSukiSU. ReSukiSU is a KSU-Next fork
+  # that adds inline hooks and KPM (Kernel Patch Modules) for runtime in-
+  # kernel patching. KPM modules cover most SUSFS-equivalent capabilities
+  # (sus_path, sus_mount, sus_kstat) as loadable runtime patches instead of
+  # compile-time kernel patches. This dodges the susfs_patch_to_4.14.patch
+  # .rej hell against SLM 4.14.357.
   KERNELSU_SOURCE   : ""
   KERNELSU_BRANCH   : ""
   KERNELSU_AUTO_GET : "true"
-  KERNELSU_AUTO_FORK: "next"
+  KERNELSU_AUTO_FORK: "resukisu"
 
-  # No SUSFS in v3. KSU-Next's per-app deny list + namespace isolation is
-  # sufficient given the device has tripped Knox (hardware attestation
-  # already failed — SUSFS adds marginal value there).
+  # SUSFS off in v5. ReSukiSU + KPM modules replace SUSFS for our use case
+  # (root hiding on a tripped-Knox device).
   SUSFS_ENABLE      : false
   SUSFS_FIXED       : false
 
@@ -75,7 +77,7 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v3"
+  ROM_TEXT          : "oneui_a13_v5"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
