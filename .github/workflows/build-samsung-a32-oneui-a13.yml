@@ -174,23 +174,26 @@ jobs:
             security/selinux/hooks.c kernel/reboot.c kernel/sys.c
           echo 'CONFIG_KSU_MANUAL_HOOK=y' >> arch/arm64/configs/a32_slm_defconfig
 
-          # ReSukiSU requires ksu_handle_newfstat_ret which SLM doesn't ship.
-          # Inject the extern declaration and call site per ReSukiSU's manual
-          # integration guide: https://resukisu.github.io/guide/manual-integrate.html
+          # ReSukiSU's manual_hook_check requires ksu_handle_newfstat_ret AND
+          # ksu_handle_fstat64_ret. SLM ships ksu_handle_stat but not these.
+          # Inject both per ReSukiSU's guide:
+          # https://resukisu.github.io/guide/manual-integrate.html
           python3 <<'PYEOF'
           import re
           p = "fs/stat.c"
           src = open(p).read()
 
-          src, n1 = re.subn(
+          src, n_ext = re.subn(
               r'(extern int ksu_handle_stat\([^)]*\);\s*\n#endif\n)',
               r'\1#ifdef CONFIG_KSU_MANUAL_HOOK\n'
               r'extern void ksu_handle_newfstat_ret(unsigned int *fd, '
-              r'struct stat __user **statbuf_ptr);\n#endif\n',
+              r'struct stat __user **statbuf_ptr);\n'
+              r'extern void ksu_handle_fstat64_ret(unsigned long *fd, '
+              r'struct stat64 __user **statbuf_ptr);\n#endif\n',
               src, count=1)
-          assert n1 == 1, "extern injection failed"
+          assert n_ext == 1, "extern injection failed"
 
-          src, n2 = re.subn(
+          src, n_nf = re.subn(
               r'(SYSCALL_DEFINE2\(newfstat, unsigned int, fd,'
               r' struct stat __user \*, statbuf\)\s*\n'
               r'\{[^}]*?error = cp_new_stat\(&stat, statbuf\);\s*\n)\s*\n'
@@ -198,10 +201,20 @@ jobs:
               r'\1\n#ifdef CONFIG_KSU_MANUAL_HOOK\n'
               r'\tksu_handle_newfstat_ret(&fd, &statbuf);\n#endif\n\2',
               src, count=1)
-          assert n2 == 1, "call-site injection failed"
+          assert n_nf == 1, "newfstat call-site injection failed"
+
+          src, n_f64 = re.subn(
+              r'(SYSCALL_DEFINE2\(fstat64, unsigned long, fd,'
+              r' struct stat64 __user \*, statbuf\)\s*\n'
+              r'\{[^}]*?error = cp_new_stat64\(&stat, statbuf\);\s*\n)\s*\n'
+              r'(\treturn error;\s*\n\})',
+              r'\1\n#ifdef CONFIG_KSU_MANUAL_HOOK\n'
+              r'\tksu_handle_fstat64_ret(&fd, &statbuf);\n#endif\n\2',
+              src, count=1)
+          assert n_f64 == 1, "fstat64 call-site injection failed"
 
           open(p, 'w').write(src)
-          print("[+] ksu_handle_newfstat_ret hook injected into fs/stat.c")
+          print("[+] newfstat_ret + fstat64_ret hooks injected into fs/stat.c")
           PYEOF
 
       - name: Build Process
