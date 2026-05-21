@@ -1,4 +1,4 @@
-# v9a — SukiSU-Ultra (builtin) + SUSFS v2.1.0 + kernel banner spoof on SLM base.
+# v10 — v9a + inject ksu_handle_setresuid call in kernel/sys.c (manager APK detection)
 #
 # Drop this file into your fork of JackA1ltman/NonGKI_Kernel_Build_2nd at:
 #     .github/workflows/build-samsung-a32-oneui-a13.yml
@@ -94,7 +94,7 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v9"
+  ROM_TEXT          : "oneui_a13_v10"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
@@ -195,6 +195,34 @@ jobs:
             fs/devpts/inode.c drivers/input/input.c drivers/tty/pty.c \
             security/selinux/hooks.c kernel/reboot.c kernel/sys.c
           echo 'CONFIG_KSU_MANUAL_HOOK=y' >> arch/arm64/configs/a32_slm_defconfig
+
+          # v10 fix: SLM does NOT pre-bake a setresuid hook. SukiSU-Ultra
+          # builtin's hook/lsm_hook.c gates the LSM task_fix_setuid hook
+          # behind #ifndef CONFIG_KSU_SUSFS — meaning when SUSFS is ON,
+          # the LSM hook is not registered AND no other call site exists
+          # for ksu_handle_setresuid. Result: manager APK never gets the
+          # FD installed, every manager reports "unsupported".
+          # Fix: inject a manual call at the top of SYSCALL_DEFINE3(setresuid)
+          # in kernel/sys.c, matching SLM's manual-hook pattern.
+          python3 <<'PYEOF'
+          import re
+          p = "kernel/sys.c"
+          src = open(p).read()
+
+          # Inject right after the SYSCALL_DEFINE3(setresuid, ...) opening brace
+          src, n = re.subn(
+              r'(SYSCALL_DEFINE3\(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid\)\s*\n\{\n)',
+              r'\1'
+              r'#ifdef CONFIG_KSU\n'
+              r'\textern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);\n'
+              r'\tksu_handle_setresuid(ruid, euid, suid);\n'
+              r'#endif\n',
+              src, count=1)
+          assert n == 1, "setresuid hook injection failed"
+
+          open(p, 'w').write(src)
+          print("[+] ksu_handle_setresuid hook injected into SYSCALL_DEFINE3(setresuid)")
+          PYEOF
 
       - name: Build Process
         uses: ./.github/workflows/build-process
