@@ -1,4 +1,4 @@
-# v7 — ReSukiSU + SUSFS v2.1.0 on SLM base.
+# v8 — ReSukiSU (susfs-ksud) + SUSFS v2.1.0 + kernel banner spoof on SLM base.
 #
 # Drop this file into your fork of JackA1ltman/NonGKI_Kernel_Build_2nd at:
 #     .github/workflows/build-samsung-a32-oneui-a13.yml
@@ -28,10 +28,11 @@ env:
   # in fs/exec.c / fs/stat.c / fs/open.c). 4.14.357 (vs stock .186) — strict
   # superset, ABI-stable across 4.14.x.
   KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_mt6768.git"
-  # v7: v7-susfs branch == v6-susfs (SUSFS v2.1.0 patches pre-applied). We
-  # only change the KSU fork (next -> resukisu) to get ReSukiSU's manager
-  # & KPM-style hiding while keeping SUSFS source patches.
-  KERNEL_BRANCH : "v7-susfs"
+  # v8: v8-susfs adds Makefile EXTRAVERSION="" + CONFIG_LOCALVERSION="" on
+  # top of v7-susfs (which has SUSFS v2.1.0 patches + fake-enforce). This
+  # scrubs "-openela-vigus-slmkernel-a32" from UTS_RELEASE so /proc/version
+  # reads "4.14.357" not "4.14.357-openela-vigus-slmkernel-a32".
+  KERNEL_BRANCH : "v8-susfs"
 
   # ---- Toolchain downloads -------------------------------------------------
   CLANG_SOURCE  : "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz"
@@ -50,13 +51,19 @@ env:
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT   : false
 
-  # ---- KSU fork: ReSukiSU --------------------------------------------------
-  # v7 uses ReSukiSU (fork of SukiSU-Ultra, "MSGA"). With SUSFS_ENABLE=true
-  # the framework auto-picks ReSukiSU's SUSFS-compatible branch.
-  KERNELSU_SOURCE   : ""
-  KERNELSU_BRANCH   : ""
-  KERNELSU_AUTO_GET : "true"
-  KERNELSU_AUTO_FORK: "resukisu"
+  # ---- KSU fork: ReSukiSU (susfs-ksud branch) -----------------------------
+  # v7 lesson: framework's AUTO_FORK="resukisu" picks ReSukiSU's "main"
+  # branch which DOES NOT define CONFIG_KSU_SUSFS_* in Kconfig. Result:
+  # SUSFS patches applied to kernel source compile under #ifdef but the
+  # master flag silently drops at olddefconfig → SUSFS is dead.
+  #
+  # v8 fix: bypass AUTO_FORK and explicitly clone ReSukiSU's susfs-ksud
+  # branch, which DOES define the SUSFS Kconfig menu.
+  KERNELSU_SOURCE   : "https://github.com/ReSukiSU/ReSukiSU.git"
+  KERNELSU_BRANCH   : "susfs-ksud"
+  KERNELSU_AUTO_GET : "false"
+  KERNELSU_AUTO_FORK: ""
+  KERNELSU_METHOD   : "manual"
 
   # v7: SUSFS still enabled. SUSFS patches are pre-applied to the kernel
   # source (v7-susfs branch == v6-susfs). With SUSFS_ENABLE=true:
@@ -78,13 +85,12 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v7"
+  ROM_TEXT          : "oneui_a13_v8"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
 
   PACK_KMODULES     : "false"
-  KERNELSU_METHOD   : "shell"
 
   PATCHES_SOURCE    : "JackA1ltman/NonGKI_Kernel_Patches"
   PATCHES_BRANCH    : "samsung_kernel"
@@ -130,6 +136,12 @@ jobs:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR    : "true"
       CCACHE_HARDLINK     : "true"
+      # v8 kernel banner spoof — mkcompile_h reads these from env to set
+      # LINUX_COMPILE_BY, LINUX_COMPILE_HOST, UTS_VERSION used by
+      # init/version.c → linux_banner → /proc/version.
+      KBUILD_BUILD_USER     : "dpi"
+      KBUILD_BUILD_HOST     : "21DND906"
+      KBUILD_BUILD_TIMESTAMP: "Tue Feb 25 20:02:43 KST 2025"
 
     steps:
       - name: Checkout repository
