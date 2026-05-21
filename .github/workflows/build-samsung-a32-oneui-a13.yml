@@ -1,4 +1,4 @@
-# v11 — v10 + enable CONFIG_KPM=y so manager's KSU_IOCTL_KPM dispatcher exists
+# v12 — v11 + backport access_ok() to 4.14 form in drivers/kernelsu/kpm/kpm.c
 #
 # Drop this file into your fork of JackA1ltman/NonGKI_Kernel_Build_2nd at:
 #     .github/workflows/build-samsung-a32-oneui-a13.yml
@@ -94,7 +94,7 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v11"
+  ROM_TEXT          : "oneui_a13_v12"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
@@ -206,6 +206,17 @@ jobs:
           echo 'CONFIG_KPM=y' >> arch/arm64/configs/a32_slm_defconfig
           echo 'CONFIG_KALLSYMS=y' >> arch/arm64/configs/a32_slm_defconfig
           echo 'CONFIG_KALLSYMS_ALL=y' >> arch/arm64/configs/a32_slm_defconfig
+
+          # v12 fix: SukiSU-Ultra's drivers/kernelsu/kpm/kpm.c uses the
+          # post-5.0 2-arg access_ok(addr, size). Our 4.14 kernel still
+          # has the 3-arg form access_ok(type, addr, size). Backport by
+          # sed rewrite. All call sites pass exactly 2 args, no nested
+          # commas in args, so a simple regex suffices.
+          if [ -f drivers/kernelsu/kpm/kpm.c ]; then
+            sed -E -i 's|access_ok\(([^,)]+), ([^)]+)\)|access_ok(VERIFY_READ, \1, \2)|g' drivers/kernelsu/kpm/kpm.c
+            echo "[+] Backported access_ok in kpm.c:"
+            grep -c "access_ok(VERIFY_READ" drivers/kernelsu/kpm/kpm.c
+          fi
 
           # v10 fix: SLM does NOT pre-bake a setresuid hook. SukiSU-Ultra
           # builtin's hook/lsm_hook.c gates the LSM task_fix_setuid hook
