@@ -1,4 +1,4 @@
-# v10 — v9a + inject ksu_handle_setresuid call in kernel/sys.c (manager APK detection)
+# v11 — v10 + enable CONFIG_KPM=y so manager's KSU_IOCTL_KPM dispatcher exists
 #
 # Drop this file into your fork of JackA1ltman/NonGKI_Kernel_Build_2nd at:
 #     .github/workflows/build-samsung-a32-oneui-a13.yml
@@ -94,7 +94,7 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v10"
+  ROM_TEXT          : "oneui_a13_v11"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
@@ -195,6 +195,17 @@ jobs:
             fs/devpts/inode.c drivers/input/input.c drivers/tty/pty.c \
             security/selinux/hooks.c kernel/reboot.c kernel/sys.c
           echo 'CONFIG_KSU_MANUAL_HOOK=y' >> arch/arm64/configs/a32_slm_defconfig
+
+          # v11 fix: enable CONFIG_KPM=y so the KSU_IOCTL_KPM (0xc0004bc8)
+          # dispatcher is compiled in. SukiSU manager queries KPM at startup;
+          # without it the manager gets "unsupported command" and reports the
+          # kernel as not-integrated. Kconfig auto-selects KALLSYMS via:
+          #   config KPM
+          #       select KALLSYMS
+          #       select KALLSYMS_ALL
+          echo 'CONFIG_KPM=y' >> arch/arm64/configs/a32_slm_defconfig
+          echo 'CONFIG_KALLSYMS=y' >> arch/arm64/configs/a32_slm_defconfig
+          echo 'CONFIG_KALLSYMS_ALL=y' >> arch/arm64/configs/a32_slm_defconfig
 
           # v10 fix: SLM does NOT pre-bake a setresuid hook. SukiSU-Ultra
           # builtin's hook/lsm_hook.c gates the LSM task_fix_setuid hook
