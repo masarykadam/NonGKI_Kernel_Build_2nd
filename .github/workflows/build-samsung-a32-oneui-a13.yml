@@ -28,7 +28,9 @@ env:
   # in fs/exec.c / fs/stat.c / fs/open.c). 4.14.357 (vs stock .186) — strict
   # superset, ABI-stable across 4.14.x.
   KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_mt6768.git"
-  KERNEL_BRANCH : "common"
+  # v6: v6-susfs branch has SUSFS v2.1.0 patches pre-applied (the framework's
+  # susfs_patch_to_4.14.patch with --fuzz=3 plus 8 hand-fixed hunks).
+  KERNEL_BRANCH : "v6-susfs"
 
   # ---- Toolchain downloads -------------------------------------------------
   CLANG_SOURCE  : "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz"
@@ -56,10 +58,11 @@ env:
   KERNELSU_AUTO_GET : "true"
   KERNELSU_AUTO_FORK: "next"
 
-  # No SUSFS in v3. KSU-Next's per-app deny list + namespace isolation is
-  # sufficient given the device has tripped Knox (hardware attestation
-  # already failed — SUSFS adds marginal value there).
-  SUSFS_ENABLE      : false
+  # v6: SUSFS enabled. SUSFS patches are pre-applied to the kernel source
+  # (v6-susfs branch). With SUSFS_ENABLE=true the framework will:
+  # (a) add CONFIG_KSU_SUSFS_* flags to defconfig
+  # (b) grep fs/namespace.c, detect SUSFS already there, skip re-applying
+  SUSFS_ENABLE      : true
   SUSFS_FIXED       : false
 
   # ---- Packaging (MTK can't boot raw Image -> MKBOOTIMG with stock ramdisk)-
@@ -75,7 +78,7 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v3"
+  ROM_TEXT          : "oneui_a13_v6"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
