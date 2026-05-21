@@ -1,4 +1,4 @@
-# v12 — v11 + backport access_ok() to 4.14 form in drivers/kernelsu/kpm/kpm.c
+# v13 — v12 + force thread_pid path in super_access.c (4.14 OpenELA has backport)
 #
 # Drop this file into your fork of JackA1ltman/NonGKI_Kernel_Build_2nd at:
 #     .github/workflows/build-samsung-a32-oneui-a13.yml
@@ -94,7 +94,7 @@ env:
   NEED_DTBO         : true
   NEED_SAFE_DTBO    : true
 
-  ROM_TEXT          : "oneui_a13_v12"
+  ROM_TEXT          : "oneui_a13_v13"
 
   # ---- Misc ----------------------------------------------------------------
   PYTHON_VERSION    : "3"
@@ -216,6 +216,21 @@ jobs:
             sed -E -i 's|access_ok\(([^,)]+), ([^)]+)\)|access_ok(VERIFY_READ, \1, \2)|g' drivers/kernelsu/kpm/kpm.c
             echo "[+] Backported access_ok in kpm.c:"
             grep -c "access_ok(VERIFY_READ" drivers/kernelsu/kpm/kpm.c
+          fi
+
+          # v13 fix: KPM's super_access.c guards thread_pid access with
+          #   #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+          #     DEFINE_MEMBER(task_struct, pids[PIDTYPE_PID].pid)
+          #   #else
+          #     DEFINE_MEMBER(task_struct, thread_pid)
+          #   #endif
+          # but our 4.14.357 (OpenELA) has the thread_pid backport that
+          # landed in mainline 4.19. Force the #else branch by flipping
+          # the condition to #if 0.
+          if [ -f drivers/kernelsu/kpm/super_access.c ]; then
+            sed -i 's|^#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)$|#if 0 /* 4.14 OpenELA backport has thread_pid */|' drivers/kernelsu/kpm/super_access.c
+            echo "[+] Patched super_access.c for thread_pid backport:"
+            grep -c "thread_pid" drivers/kernelsu/kpm/super_access.c
           fi
 
           # v10 fix: SLM does NOT pre-bake a setresuid hook. SukiSU-Ultra
