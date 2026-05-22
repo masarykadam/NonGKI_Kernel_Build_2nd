@@ -1,0 +1,228 @@
+# v14 — Vanilla SLM 4.14 kernel + KernelPatch + NoHello KPM embedded.
+#
+# Goal: a clean kernel the FolkPatch Manager can recognize. No KSU, no SUSFS,
+# no in-tree KPM. KernelPatch loads its own KPM ecosystem at runtime.
+#
+# Why this should succeed where the FolkPatch-on-stock-boot.img attempt failed:
+# stock A32 boot.img has CONFIG_KALLSYMS_BASE_RELATIVE=n + KALLSYMS_ALL=n, which
+# trips kptools' parser and produces garbage offsets ("tcp_init_sock" lands at
+# 0xb015e674). Our build forces both to =y, putting kptools on its well-tested
+# fast path.
+
+name: Build Samsung Galaxy A32 (FolkPatch)
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  # ---- Device --------------------------------------------------------------
+  DEVICE_NAME     : "samsung_a32"
+  DEVICE_CODENAME : "a32"
+
+  # ---- Toolchain flags (same as v13 — proven on this kernel) ---------------
+  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- ANDROID_MAJOR_VERSION=r KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y"
+  EXTRA_CMDS  : "LLVM=1 LLVM_IAS=1 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip READELF=llvm-readelf HOSTCC=clang HOSTCXX=clang++"
+
+  # ---- Kernel source -------------------------------------------------------
+  # `common` branch = vanilla SLM 4.14.357. KSU manual hooks are pre-baked
+  # in fs/exec.c, fs/open.c, fs/stat.c etc, but the framework's clean_hook.sh
+  # will strip them. With no KSU integration step to re-inject anything,
+  # the kernel compiles cleanly with zero root code.
+  KERNEL_SOURCE : "https://github.com/masarykadam/android_kernel_samsung_mt6768.git"
+  KERNEL_BRANCH : "common"
+
+  # ---- Toolchain downloads (same as v13) -----------------------------------
+  CLANG_SOURCE  : "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz"
+  CLANG_BRANCH  : ""
+
+  GCC_GNU       : true
+  GCC_64_SOURCE : "https://github.com/nduykha/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu.git"
+  GCC_64_BRANCH : "main"
+  GCC_32_SOURCE : ""
+  GCC_32_BRANCH : ""
+
+  # ---- Defconfig -----------------------------------------------------------
+  DEFCONFIG_SOURCE      : ""
+  DEFCONFIG_NAME        : "a32_slm_defconfig"
+  DEFCONFIG_ORIGIN_IMAGE: ""
+  DEFCONFIG_FROM_BOOT   : false
+
+  # ---- KSU: completely disabled --------------------------------------------
+  # KERNELSU_AUTO_GET=false + KERNELSU_METHOD="" means the framework's
+  # KERNELSU_MANUAL() function enters but no branch matches, so nothing
+  # is cloned. clean_hook.sh still strips the pre-baked SLM hooks.
+  KERNELSU_SOURCE   : ""
+  KERNELSU_BRANCH   : ""
+  KERNELSU_AUTO_GET : "false"
+  KERNELSU_AUTO_FORK: ""
+  KERNELSU_METHOD   : ""
+
+  # ---- SUSFS: disabled -----------------------------------------------------
+  SUSFS_ENABLE      : false
+  SUSFS_FIXED       : false
+
+  # ---- Packaging -----------------------------------------------------------
+  PACK_METHOD       : "MKBOOTIMG"
+  BOOT_SOURCE       : "https://github.com/masarykadam/android_kernel_samsung_mt6768/releases/download/stock-boot/stock_boot.img"
+
+  AK3_SOURCE        : "https://github.com/osm0sis/AnyKernel3.git"
+  AK3_BRANCH        : "master"
+
+  NEED_DTBO         : true
+  NEED_SAFE_DTBO    : true
+
+  ROM_TEXT          : "oneui_a13_v14_folkpatch"
+
+  # ---- Misc ----------------------------------------------------------------
+  PYTHON_VERSION    : "3"
+  PACK_KMODULES     : "false"
+
+  PATCHES_SOURCE    : "JackA1ltman/NonGKI_Kernel_Patches"
+  PATCHES_BRANCH    : "samsung_kernel"
+  SUSFS_FOLDER_FIXED: ""
+  SUSFS_PATCH_FIXED : ""
+
+  REKERNEL_ENABLE   : "false"
+
+  # No hook injection — vanilla kernel.
+  HOOK_METHOD       : ""
+
+  KERNEL_PATCH      : "false"
+
+  # No in-tree KPM. KernelPatch loads its own KPM ecosystem at runtime.
+  KPM_ENABLE        : "false"
+  KPM_INLINE        : "false"
+  KPM_KPATCH_NEXT   : "false"
+
+  BASEBAND_GUARD_ENABLE: "false"
+  BASEBAND_GUARD_BOOT  : "false"
+  HIDE_STUFF        : "false"
+
+  GENERATE_DTB      : "false"
+  GENERATE_CHIP     : "mediatek"
+
+  BUILD_DEBUGGER    : "false"
+  SKIP_PATCH        : "true"
+  BUILD_OTHER_CONFIG: "false"
+  MERGE_CONFIG_FILES: ""
+  FREE_MORE_SPACE   : "true"
+
+jobs:
+  build-kernel:
+    name: Samsung Galaxy A32 (FolkPatch)
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR    : "true"
+      CCACHE_HARDLINK     : "true"
+      # Banner spoof — match stock so /proc/version reads as a stock build.
+      KBUILD_BUILD_USER     : "dpi"
+      KBUILD_BUILD_HOST     : "21DND906"
+      KBUILD_BUILD_TIMESTAMP: "Tue Feb 25 20:02:43 KST 2025"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Compilation environment preparation
+        uses: ./.github/workflows/build-env
+
+      - name: Get necessary tools
+        uses: ./.github/workflows/build-ready
+
+      # No patch-susfs (SUSFS_ENABLE=false).
+      # No patch-no-kprobe (we don't want any KSU hooks).
+      # No restore-hooks step (we want the vanilla kernel clean_hook.sh produced).
+
+      - name: Strip KSU and prepare defconfig for KernelPatch
+        run: |
+          cd device_kernel
+
+          # The framework's "Set KSU and SUSFS for DEFCONFIG" step appends
+          # CONFIG_KSU=y unconditionally (build-ready/action.yml:300). With no
+          # KSU source cloned, that would make Kbuild descend into a non-
+          # existent drivers/kernelsu/ at compile time. Strip it.
+          sed -i '/^CONFIG_KSU=/d' arch/arm64/configs/a32_slm_defconfig
+          sed -i '/^CONFIG_KSU_/d' arch/arm64/configs/a32_slm_defconfig
+          echo '# CONFIG_KSU is not set' >> arch/arm64/configs/a32_slm_defconfig
+
+          # KernelPatch needs full kallsyms for symbol resolution.
+          # Stock A32 has BASE_RELATIVE=n — that's what tripped kptools'
+          # parser on the stock boot.img. Force it =y here.
+          sed -i '/^CONFIG_KALLSYMS/d' arch/arm64/configs/a32_slm_defconfig
+          sed -i '/^# CONFIG_KALLSYMS/d' arch/arm64/configs/a32_slm_defconfig
+          sed -i '/^CONFIG_KPROBES/d' arch/arm64/configs/a32_slm_defconfig
+          sed -i '/^# CONFIG_KPROBES/d' arch/arm64/configs/a32_slm_defconfig
+
+          {
+            echo 'CONFIG_KALLSYMS=y'
+            echo 'CONFIG_KALLSYMS_ALL=y'
+            echo 'CONFIG_KALLSYMS_BASE_RELATIVE=y'
+            echo 'CONFIG_KPROBES=y'
+          } >> arch/arm64/configs/a32_slm_defconfig
+
+          echo "[+] Defconfig prepared for KernelPatch (vanilla, no KSU):"
+          grep -E "KSU|KALLSYMS|KPROBES" arch/arm64/configs/a32_slm_defconfig | sort -u
+
+      # SLM common ships CONFIG_DEBUG_INFO_BTF=y, which builds the host
+      # tool tools/bpf/resolve_btfids. That tool requires libelf headers.
+      - name: Install BTF build deps
+        run: sudo apt-get update && sudo apt-get install -y libelf-dev pahole
+
+      - name: Build Process
+        uses: ./.github/workflows/build-process
+
+      - name: Pack Process
+        uses: ./.github/workflows/pack-process
+
+      - name: Apply KernelPatch + embed NoHello KPM
+        run: |
+          cd $GITHUB_WORKSPACE
+
+          echo "[+] Built boot.img: ${PACK_NAME}"
+          ls -la "${PACK_NAME}"
+
+          mkdir -p kp_work && cd kp_work
+
+          # KernelPatch 0.13.1 tooling.
+          curl -sL -o kptools-linux \
+            https://github.com/bmax121/KernelPatch/releases/download/0.13.1/kptools-linux
+          curl -sL -o kpimg-android \
+            https://github.com/bmax121/KernelPatch/releases/download/0.13.1/kpimg-android
+          chmod +x kptools-linux
+
+          # NoHello v80 — supports 4.14.x kernels, requires KernelPatch 0.12.4+.
+          curl -sL -o NoHello-v80.kpm \
+            https://raw.githubusercontent.com/fatalcoder524/KPM_Repo/main/NoHello/Nohello-v1.8.2.9-80-35888e6-release.kpm
+
+          # Unpack the freshly-built boot.img.
+          cp "../${PACK_NAME}" boot.img
+          ./kptools-linux unpack boot.img
+
+          # Patch kernel + embed NoHello. Superkey = "su".
+          # Minimal embed args: -M file -T kpm. KPM's own metadata (name,
+          # version, author) is read from the .kpm. Adding -N/-V/-A would
+          # override and breaks the patch (kptools exits without writing).
+          ./kptools-linux -p --image kernel --skey "su" --kpimg kpimg-android \
+            -M NoHello-v80.kpm -T kpm --out kernel
+
+          echo "[+] Embedded extras:"
+          ./kptools-linux -l -i kernel | tail -25
+
+          ./kptools-linux repack boot.img
+          mv new-boot.img "../${PACK_NAME}"
+          echo "[+] Patched boot.img written back: $(ls -la ../${PACK_NAME})"
+
+      - name: Wrap into Odin AP.tar
+        run: |
+          cd $GITHUB_WORKSPACE
+          # Samsung Odin AP slot expects a tar with boot.img inside.
+          cp "${PACK_NAME}" boot.img
+          AP_NAME="${DEVICE_CODENAME}-${ROM_TEXT}-AP.tar"
+          tar -cf "${AP_NAME}" boot.img
+          ls -la "${AP_NAME}"
+          echo "PACK_NAME=${AP_NAME}" >> $GITHUB_ENV
+
+      - name: Upload Artifacts
+        uses: ./.github/workflows/upload-files
