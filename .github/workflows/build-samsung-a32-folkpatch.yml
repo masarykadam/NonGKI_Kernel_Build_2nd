@@ -176,7 +176,7 @@ jobs:
       - name: Pack Process
         uses: ./.github/workflows/pack-process
 
-      - name: Apply KernelPatch + embed NoHello KPM
+      - name: Apply KernelPatch + embed KPMs
         run: |
           cd $GITHUB_WORKSPACE
 
@@ -196,19 +196,25 @@ jobs:
           curl -sL -o NoHello-v80.kpm \
             https://raw.githubusercontent.com/fatalcoder524/KPM_Repo/main/NoHello/Nohello-v1.8.2.9-80-35888e6-release.kpm
 
+          # selinux_hook 1.0.8 (= selinux_magisk_access_filter by Admire) —
+          # not publicly hosted, vendored in .github/kpms/ in this repo.
+          cp "$GITHUB_WORKSPACE/.github/kpms/selinux_hook_1.0.8.kpm" .
+
           # Unpack the freshly-built boot.img.
           cp "../${PACK_NAME}" boot.img
           ./kptools-linux unpack boot.img
 
-          # Patch kernel + embed NoHello. Superkey = "su".
-          # Minimal embed args: -M file -T kpm. KPM's own metadata (name,
-          # version, author) is read from the .kpm. Adding -N/-V/-A would
-          # override and breaks the patch (kptools exits without writing).
+          # Patch kernel + embed BOTH KPMs. Superkey = "su".
+          # Minimal embed args: -M file -T kpm per KPM. KPM's own metadata
+          # (name, version, author) is read from the .kpm. Adding -N/-V/-A
+          # would override and break the patch (kptools exits without writing).
           ./kptools-linux -p --image kernel --skey "su" --kpimg kpimg-android \
-            -M NoHello-v80.kpm -T kpm --out kernel
+            -M selinux_hook_1.0.8.kpm -T kpm \
+            -M NoHello-v80.kpm -T kpm \
+            --out kernel
 
           echo "[+] Embedded extras:"
-          ./kptools-linux -l -i kernel | tail -25
+          ./kptools-linux -l -i kernel | tail -30
 
           ./kptools-linux repack boot.img
           mv new-boot.img "../${PACK_NAME}"
