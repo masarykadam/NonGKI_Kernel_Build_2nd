@@ -139,6 +139,15 @@ jobs:
         run: |
           cd device_kernel
 
+          # SLM `common` branch source has drivers/Kconfig and drivers/Makefile
+          # pre-wired to include drivers/kernelsu/. Without that directory
+          # present, even Kconfig PARSING fails ("can't open file
+          # drivers/kernelsu/Kconfig"). Strip the include from both files.
+          sed -i '\|source "drivers/kernelsu/Kconfig"|d' drivers/Kconfig
+          sed -i '\|obj-\$(CONFIG_KSU) += kernelsu/|d' drivers/Makefile
+          echo "[+] drivers/Kconfig + drivers/Makefile cleaned of kernelsu refs:"
+          grep -n kernelsu drivers/Kconfig drivers/Makefile || echo "    (clean)"
+
           # The framework's "Set KSU and SUSFS for DEFCONFIG" step appends
           # CONFIG_KSU=y unconditionally (build-ready/action.yml:300). With no
           # KSU source cloned, that would make Kbuild descend into a non-
